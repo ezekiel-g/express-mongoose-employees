@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, beforeEach, jest }
+import { describe, it, expect, beforeAll, afterAll, afterEach, jest }
     from '@jest/globals'
 import request from 'supertest'
 import express from 'express'
@@ -11,7 +11,7 @@ describe('createCrudRouter', () => {
     let app
     let model
 
-    beforeEach(() => {
+    beforeAll(() => {
         model = jest.fn()
         model.find = jest.fn()
         model.findById = jest.fn()
@@ -22,108 +22,128 @@ describe('createCrudRouter', () => {
         app.use(express.json())
         app.use('/api/v1/users', createCrudRouter(model))
 
-        handleDbError.mockImplementation((response, error) => {
-            response.status(500).json({ error: error.message })
-        })
+        jest.spyOn(console, 'error').mockImplementation(() => {})
     })
 
     afterEach(() => jest.clearAllMocks())
 
-    it('handles GET /', async () => {
+    afterAll(() => console.error.mockRestore())
+
+    it('returns 200 and all documents on GET /', async () => {
         const mockDocuments = [{ name: 'Michael' }, { name: 'Sarah' }]
         model.find.mockResolvedValue(mockDocuments)
 
-        await request(app).get('/api/v1/users').expect(200)
+        const response = await request(app).get('/api/v1/users')
 
-        expect(model.find).toHaveBeenCalled()
+        expect(response.status).toBe(200)
+        expect(response.body).toEqual(mockDocuments)
         expect(model.find).toHaveBeenCalledWith()
     })
 
-    it('handles GET /:id', async () => {
+    it('returns 200 and specific document on GET /:id', async () => {
         const mockDocument = { name: 'Michael' }
         model.findById.mockResolvedValue(mockDocument)
 
-        await request(app).get('/api/v1/users/1').expect(200)
+        const response = await request(app).get('/api/v1/users/1')
 
+        expect(response.status).toBe(200)
+        expect(response.body).toEqual([mockDocument])
         expect(model.findById).toHaveBeenCalledWith('1')
-        expect(model.findById).toHaveBeenCalledTimes(1)
     })
 
-    it('returns 404 when GET /:id document not found', async () => {
+    it('returns 404 when no document found on GET /:id', async () => {
         model.findById.mockResolvedValue(null)
 
-        await request(app).get('/api/v1/users/1').expect(404)
+        const response = await request(app).get('/api/v1/users/1')
 
+        expect(response.status).toBe(404)
+        expect(response.body).toEqual([])
         expect(model.findById).toHaveBeenCalledWith('1')
-        expect(model.findById).toHaveBeenCalledTimes(1)
     })
 
-    it('handles POST /', async () => {
+    it('returns 201 and new document on POST /', async () => {
         const requestBody = { name: 'Michael', city: 'New York' }
         const savedDocument = { _id: '1', name: 'Michael', city: 'New York' }
 
         const mockSave = jest.fn().mockResolvedValue(savedDocument)
         model.mockImplementation(() => ({ save: mockSave }))
 
-        await request(app)
+        const response = await request(app)
             .post('/api/v1/users')
             .send(requestBody)
-            .expect(201)
 
-        expect(mockSave).toHaveBeenCalledTimes(1)
+        expect(response.status).toBe(201)
+        expect(response.body).toEqual([savedDocument])
+        expect(mockSave).toHaveBeenCalled()
     })
 
-    it('handles PATCH /:id', async () => {
+    it('returns 200 and updated document on PATCH /:id', async () => {
         const requestBody = { name: 'Michael', city: 'New York' }
         const updatedDocument = { _id: '1', name: 'Michael', city: 'New York' }
         model.findByIdAndUpdate.mockResolvedValue(updatedDocument)
 
-        await request(app)
+        const response = await request(app)
             .patch('/api/v1/users/1')
             .send(requestBody)
-            .expect(200)
 
+        expect(response.status).toBe(200)
+        expect(response.body).toEqual([updatedDocument])
         expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
             '1',
             { $set: requestBody },
             { new: true, runValidators: true }
         )
-        expect(model.findByIdAndUpdate).toHaveBeenCalledTimes(1)
     })
 
-    it('returns 404 when PATCH /:id document not found', async () => {
+    it('returns 404 when no document found on PATCH /:id', async () => {
         const requestBody = { name: 'Michael', city: 'New York' }
         model.findByIdAndUpdate.mockResolvedValue(null)
 
-        await request(app)
+        const response = await request(app)
             .patch('/api/v1/users/1')
             .send(requestBody)
-            .expect(404)
 
+        expect(response.status).toBe(404)
+        expect(response.body).toEqual([])
         expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
             '1',
             { $set: requestBody },
             { new: true, runValidators: true }
         )
-        expect(model.findByIdAndUpdate).toHaveBeenCalledTimes(1)
     })
 
-    it('handles DELETE /:id', async () => {
+    it('returns 200 and deletes document on DELETE /:id', async () => {
         const deletedDocument = { _id: '1', name: 'Michael' }
         model.findByIdAndDelete.mockResolvedValue(deletedDocument)
 
-        await request(app).delete('/api/v1/users/1').expect(200)
+        const response = await request(app).delete('/api/v1/users/1')
 
+        expect(response.status).toBe(200)
+        expect(response.body).toEqual([])
         expect(model.findByIdAndDelete).toHaveBeenCalledWith('1')
-        expect(model.findByIdAndDelete).toHaveBeenCalledTimes(1)
     })
 
-    it('returns 404 when DELETE /:id document not found', async () => {
+    it('returns 404 when no document found on DELETE /:id', async () => {
         model.findByIdAndDelete.mockResolvedValue(null)
 
-        await request(app).delete('/api/v1/users/1').expect(404)
+        const response = await request(app).delete('/api/v1/users/1')
 
+        expect(response.status).toBe(404)
+        expect(response.body).toEqual([])
         expect(model.findByIdAndDelete).toHaveBeenCalledWith('1')
-        expect(model.findByIdAndDelete).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls handleDbError on GET / failure', async () => {
+        const error = new Error()
+
+        model.find.mockRejectedValueOnce(error)
+
+        handleDbError.mockImplementation(
+            response => response.status(500).json({ error: error.message })
+        )
+
+        await request(app).get('/api/v1/users')
+
+        expect(handleDbError).toHaveBeenCalledWith(expect.any(Object), error)
     })
 })
