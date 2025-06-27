@@ -1,29 +1,31 @@
 const handleDbError = (response, error) => {
-    if (error.message && error.message.includes('taken')) {
-        return response.status(400).json([error.message])
+    let statusCode = 500
+    let message = 'Unexpected error'
+
+    if (error.message?.includes('taken')) {
+        statusCode = 400
+        message = error.message
     }
 
-    if (error.name === 'ValidationError') {
-        const validationErrors = Object.values(error.errors).map(e => {
-            if (e.message.includes('Cast to date')) {
-                return 'Date format invalid'
-            } else {
-                return e.message
-            }
-        })
-
-        return response.status(400).json(validationErrors)
+    else if (error.name === 'ValidationError') {
+        const validationMessages = Object.values(error.errors).map(e =>
+            e.message.includes('Cast to date')
+                ? 'Date format invalid'
+                : e.message
+        )
+        return response.status(400).json(validationMessages)
     }
 
-    if (error.name === 'CastError') {
-        return response.status(400).json([`Invalid ID format: ${error.value}`])
+    else if (error.name === 'CastError') {
+        statusCode = 400
+        message = `Invalid ID format: ${error.value}`
     }
 
-    if (error.name === 'MongoError') {
-        return response.status(500).json([`Database error: ${error.message}`])
-    }
+    console.error('Error:', error.message)
 
-    return response.status(500).json([`Unexpected error: ${error.message}`])
+    if (error.stack) console.error(error.stack)
+
+    return response.status(statusCode).json([message])
 }
 
 export default handleDbError
